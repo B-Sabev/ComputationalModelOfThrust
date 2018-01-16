@@ -23,6 +23,8 @@ import matplotlib.pyplot as plt
 
 
 #%%
+np.random.seed(42)
+
 
 def gen_connection_matrix(n, p=0.5):
     m = np.random.rand(n,n)
@@ -58,9 +60,10 @@ class Agent(object):
         # return the expected value of the posterior probabilty of trust given data
         return np.sum(theta * p_theta)  / theta.shape[0] #Expected value is not between 0, 1 need some way to normalize
     
-    def action(self, trust, k):
+    def action(self, trust):
         # If trust is larger than some constant, return the 
-        return 1 if trust > k else 0
+        return 0 if np.random.rand() < trust else 1 # linear function
+        #return 1 if trust > k else 0   # threshold function
     
     def printInfo(self):
         print("Agent index {}".format(self.index))
@@ -70,8 +73,28 @@ class Agent(object):
         print("Total number of encounters {}".format(self.n_encouters))
         print("Trust priors a = {}, b = {}".format(self.a, self.b))
         
+
+def encounter(agents, index1, index2, verbose=0):
+    # compute trust
+    trust01 = agents[index1].estimateTrust(index2)
+    trust10 = agents[index2].estimateTrust(index1)
+    # decide action
+    action0 = agents[index1].action(trust01)
+    action1 = agents[index2].action(trust10) 
+    # update history
+    agents[index1].updateHistory(index2, action0, action1)
+    agents[index2].updateHistory(index1, action1, action0)
     
-connection_matrix = gen_connection_matrix(2, 0)
+    if verbose:
+        print("Encounter between agents {} and {}".format(index1, index2))
+        print("Trust: ({},{})".format(trust01, trust10))
+        print("Actions: ({},{})".format(action0, action1))
+    
+    
+    
+n = 5
+    
+connection_matrix = gen_connection_matrix(n, 0.3)
 
 agents = []
 for i, connections in enumerate(connection_matrix):
@@ -79,24 +102,22 @@ for i, connections in enumerate(connection_matrix):
     
     
     
-for _ in range(10):
+for _ in range(30):
     
     # Pick to agents to interact
+    index1 = np.random.randint(n)
+    know_indecies = [i for i, connection in enumerate(agents[index1].connections) if connection == 1]
+    # TODO how to scale with reputation - more reputable more chance to be picked
+    index2 = int(np.random.choice(know_indecies, 1))
+    
+    encounter(agents, index1, index2, verbose=1)
     
     
-    # compute trust
-    trust01 = agents[0].estimateTrust(1)
-    trust10 = agents[1].estimateTrust(0)
-    # decide action
-    action0 = agents[0].action(trust01, 0.5)
-    action1 = agents[1].action(trust10, 0.5) 
-    # update history
-    agents[0].updateHistory(1, action0, action1)
-    agents[1].updateHistory(0, action1, action0)
     
-    print("Actions: ({},{})".format(action0, action1))
-    agents[0].printInfo()
-    agents[1].printInfo()
+    
+    #agents[0].printInfo()
+    #agents[1].printInfo()
+    #print("\n\n\n")
         
        
 
