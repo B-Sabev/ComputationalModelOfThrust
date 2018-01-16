@@ -5,31 +5,62 @@ Created on Sat Jan 13 19:02:20 2018
 @author: Borislav
 """
 
-"""
-2 agents, 1 context c
-
-History D of encounters E between the 2 agents and 
-prior on Reputation - prior behavior of the evalutated agent from previous encouters with agents in A
-
-trust is the expected probability of \theta given D
-trust directly inflences the action {cooperate, deflect}
-"""
-
-
 #%%
 import numpy as np
 from scipy.stats import beta
 import matplotlib.pyplot as plt
 
-
-#%%
 np.random.seed(42)
+#%%
 
 
-def gen_connection_matrix(n, p=0.5):
-    m = np.random.rand(n,n)
-    m = np.sqrt(m * m.T) - np.eye(n) # make symetric and the diagonal negative
-    return np.where(m > p, 1, 0) # if bigger than p, make connection, else no connection
+
+
+
+
+class SocialNet(object):
+    
+    def __init__(self, num_agents, p_connectivity):
+        self.n = num_agents
+        self.connection_mat = self.gen_connection_matrix(num_agents, p_connectivity)
+        self.agents = self.create_agents()
+        self.know_index = self.know_indecies()
+         
+    def gen_connection_matrix(self, n, p):
+        m = np.random.rand(n,n)
+        m = np.sqrt(m * m.T) - np.eye(n) # make symetric and the diagonal negative
+        return np.where(m > p, 1, 0) # if bigger than p, make connection, else no connection
+    
+    def create_agents(self):
+        agents = []
+        for i, connections in enumerate(self.connection_mat):
+            agents.append(Agent(i, connections))
+        return agents
+    
+    def know_indecies(self):
+        indecies = []
+        for i in range(self.n): 
+            i_index = [i for i, connection in 
+                             enumerate(self.agents[i].connections) if connection == 1]
+            indecies.append(i_index)
+        return indecies
+    
+    def encounter(self, index1, index2, verbose=0):
+        # compute trust
+        self.agents[index1].estimateTrust(index2)
+        self.agents[index2].estimateTrust(index1)
+        # decide action
+        action0 = self.agents[index1].action(index2)
+        action1 = self.agents[index2].action(index1) 
+        # update history
+        self.agents[index1].updateHistory(index2, action0, action1)
+        self.agents[index2].updateHistory(index1, action1, action0)
+        
+        if verbose:
+            print("Encounter between agents {} and {}".format(index1, index2))
+            print("Trust: ({},{})".format(self.agents[index1].trusts[index2], self.agents[index2].trusts[index1]))
+            print("Actions: ({},{})\n".format(action0, action1))
+   
 
 
 class Agent(object):
@@ -40,29 +71,37 @@ class Agent(object):
         self.recip_actions = np.where(connections == 1, 0, -1) # init to 0 with people you know, -1 to people you don't know
         self.collaborations = np.where(connections == 1, 0, -1)
         self.n_encouters = np.where(connections == 1, 0, -1)
+        self.trusts = np.where(connections == 1, 0.5, -1)
         self.a = 1 # priors on trust
         self.b = 1 # priors on trust
         
-    def updateHistory(self, agent2_index, alpha1, alpha2):
-        if alpha1 == alpha2:
+    def updateHistory(self, agent2_index, action1, action2):
+        """
+        Update reciprocial connections, collaborations and total number of encouters
+        """
+        if action1 == action2:
             self.recip_actions[agent2_index] += 1
-        if alpha2 == 1:
+        if action2 == 1:
             self.collaborations[agent2_index] += 1
         self.n_encouters[agent2_index] += 1
         
     def estimateTrust(self, agent2_index):
-        
+        """
+        Estimate the trust towards agent2 and update the value in instance variable
+        """
         z = self.collaborations[agent2_index]
         N = self.n_encouters[agent2_index]
         theta = np.arange (0, 1.01, 0.01)
         # posterior on reputation given data
         p_theta = beta.pdf(theta, self.a + z, self.b + N - z)
         # return the expected value of the posterior probabilty of trust given data
-        return np.sum(theta * p_theta)  / theta.shape[0] #Expected value is not between 0, 1 need some way to normalize
+        self.trusts[agent2_index] = np.sum(theta * p_theta)  / theta.shape[0] #Expected value is not between 0, 1 need some way to normalize
     
-    def action(self, trust):
-        # If trust is larger than some constant, return the 
-        return 0 if np.random.rand() < trust else 1 # linear function
+    def action(self, agent2_index):
+        """
+        Get action towards agent2 with P(colaborate) = trust
+        """
+        return 0 if np.random.rand() < self.trusts[agent2_index] else 1 # linear function
         #return 1 if trust > k else 0   # threshold function
     
     def printInfo(self):
@@ -71,34 +110,48 @@ class Agent(object):
         print("Number reciprocate actions {}".format(self.recip_actions))
         print("Number of collaborations   {}".format(self.collaborations))
         print("Total number of encounters {}".format(self.n_encouters))
+        print("Trust towards others       {}".format(self.trusts))
         print("Trust priors a = {}, b = {}".format(self.a, self.b))
         
 
-def encounter(agents, index1, index2, verbose=0):
-    # compute trust
-    trust01 = agents[index1].estimateTrust(index2)
-    trust10 = agents[index2].estimateTrust(index1)
-    # decide action
-    action0 = agents[index1].action(trust01)
-    action1 = agents[index2].action(trust10) 
-    # update history
-    agents[index1].updateHistory(index2, action0, action1)
-    agents[index2].updateHistory(index1, action1, action0)
-    
-    if verbose:
-        print("Encounter between agents {} and {}".format(index1, index2))
-        print("Trust: ({},{})".format(trust01, trust10))
-        print("Actions: ({},{})".format(action0, action1))
-    
-    
-    
-n = 5
-    
-connection_matrix = gen_connection_matrix(n, 0.3)
 
-agents = []
-for i, connections in enumerate(connection_matrix):
-    agents.append(Agent(i, connections))
+   
+   
+#%%
+ 
+net = SocialNet(5, 0.4)    
+   
+
+
+for _ in range(50):
+    
+    # Pick two agents to interact
+    index1 = np.random.randint(net.n)
+ 
+    # TODO how to scale with reputation - more reputable more chance to be picked
+    index2 = int(np.random.choice(net.know_index[index1], 1))
+    
+    net.encounter(index1, index2, verbose=0)
+    
+    print(net.agents[0].trusts)
+#%%
+    
+x = np.random.rand(5,5)
+
+plt.imshow(x)
+   
+  
+#%%
+
+
+    
+    
+agents[0].printInfo()
+agents[0].updateHistory(1, 0, 0)
+agents[0].estimateTrust(1)
+agents[2].printInfo()
+agents[0].action(1)
+    
     
     
     
@@ -122,93 +175,23 @@ for _ in range(30):
        
 
 
-#%%
-np.random.seed(42)
-
-def generate_history_beta(n, t, p_enc):
-    """
-    Generate history of encounters 
-    """
-    p = np.cumsum(p_enc)
-    D = np.zeros((2,n))
-    r = np.random.rand(n)
-    
-    """
-    Doesn't work - generate the 4 cases with given probability
-    
-    """
-    # (0,0)
-    D[:, r < p[0]] = 0
-    # (0,1)
-    D[1, r > p[0]] = 1
-    # (1, 0)
-    D[0, r < p[2]] = 1
-    # (1,1)
-    D[:, r > p[2]] = 1
-    
-    
-    D = np.where(D < t, 0, 1)
-    return D
-
-
-def generate_history(n):
-    """
-    Generate history of encounters 
-    """
-    D = np.random.randint(0,2,(2,n))
-    return D
-
-def rep(history):
-    r = np.sum(history, axis=0)
-    # (1,1) encouters / total_encouters
-    print(r)
-    reputation = np.sum(np.where(r >= 2, 1, 0))/ r.shape[0]
-    return reputation
-
-def reciprocity(history):
-    r = np.sum(history, axis=0)
-    print(r)
-    # (1,1) + (0, 0) encouters / total_encouters
-    rec = np.sum(np.where(r != 1, 1, 0))/ r.shape[0]
-    return rec
-
-
-# personal history between the 2 agents
-d = generate_history(20)
-# Calculate dyadic reciprocity (0,0) or (1,1) / total_encounters 
-rec = reciprocity(d) # between the 2 agents
-
-
 
 #%%
-# Joint history with all other agents in A, first agent
-R_prior_1 = generate_history(10)
-# reputation is (1,1) / total encounters for All agents in A inlcuding agent 2 and D
-rep1 = rep(np.append(R_prior_1, d, axis=1)) 
+    
+"""
+Visualization of beta distribution
 
-#R_prior_2 = generate_history(30)
-#rep2 = rep(R_prior_2)
-
-
-
-  
-
-#%%
+"""
 a_s = range(1000,1005)
 b_s = range(1000,1005)
 
 theta = np.arange (0, 1.001, 0.001)
  
- 
 f, ax = plt.subplots(len(a_s), len(b_s), figsize=(12,12))
 
 for i,a in enumerate(a_s):
     for j,b in enumerate(b_s):
-        
-         
-        
         y = beta.pdf(theta,a,b)
-        
         E = [t * y_ for t,y_ in zip(theta, y)]
         #print(sum(E) / len(theta))
         
