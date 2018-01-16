@@ -23,6 +23,61 @@ import matplotlib.pyplot as plt
 
 
 #%%
+
+def gen_connection_matrix(n, p=0.5):
+    m = np.random.rand(n,n)
+    m = np.sqrt(m * m.T) - np.eye(n) # make symetric and the diagonal negative
+    return np.where(m > p, 1, 0) # if bigger than p, make connection, else no connection
+
+
+class Agent(object):
+    
+    def __init__(self, index, connections):
+        self.index = index
+        self.connections = connections 
+        self.recip_actions = np.where(connections == 1, 0, -1) # init to 0 with people you know, -1 to people you don't know
+        self.collaborations = np.where(connections == 1, 0, -1)
+        self.n_encouters = np.where(connections == 1, 0, -1)
+        self.a = 1 # priors on trust
+        self.b = 1 # priors on trust
+        
+    def updateHistory(self, agent2_index, alpha1, alpha2):
+        if alpha1 == alpha2:
+            self.recip_actions[agent2_index] += 1
+        if alpha2 == 1:
+            self.collaborations[agent2_index] += 1
+        self.n_encouters[agent2_index] += 1
+        
+    def estimateTrust(self, agent2_index):
+        
+        z = self.collaborations[agent2_index]
+        N = self.n_encouters[agent2_index]
+        theta = np.arange (0, 1.01, 0.01)
+        # posterior on reputation given data
+        p_theta = beta.pdf(theta, self.a + z, self.b + N - z)
+        # return the expected value of the posterior probabilty of trust given data
+        return theta * p_theta 
+    
+    def action(self, trust, k):
+        # If trust is larger than some constant, return the 
+        return 1 if trust > k else 0
+        
+        
+        
+        
+        
+connection_matrix = gen_connection_matrix(5)
+
+agents = []
+for i, connections in enumerate(connection_matrix):
+    agents.append(Agent(i, connections))
+        
+        
+
+        
+
+
+#%%
 np.random.seed(42)
 
 def generate_history_beta(n, t, p_enc):
@@ -94,19 +149,28 @@ rep1 = rep(np.append(R_prior_1, d, axis=1))
   
 
 #%%
-a =  2
-b = 2
-
-
-for a in range(1,5):
-    for b in range(1,5):
-       
+a_s = range(1,5)
+b_s = range(1,5)
 
 theta = np.arange (0, 1.01, 0.01)
-y = beta.pdf(theta,a,b)
-plt.plot(theta,y)
-plt.show()
+ 
+ 
+#f, ax = plt.subplots(len(a_s), len(b_s), figsize=(12,12))
 
+for i,a in enumerate(a_s):
+    for j,b in enumerate(b_s):
+        
+         
+        
+        y = beta.pdf(theta,a,b)
+        
+        E = [t * y_ for t,y_ in zip(theta, y)]
+        print(sum(E))
+        
+        #ax[i][j].plot(theta,y)
+        #ax[i][j].set_title("a = {}, b = {}".format(a,b))
+        
+#plt.show()
 
 
 
