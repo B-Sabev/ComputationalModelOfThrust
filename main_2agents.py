@@ -56,25 +56,49 @@ class Agent(object):
         # posterior on reputation given data
         p_theta = beta.pdf(theta, self.a + z, self.b + N - z)
         # return the expected value of the posterior probabilty of trust given data
-        return theta * p_theta 
+        return np.sum(theta * p_theta)  / theta.shape[0] #Expected value is not between 0, 1 need some way to normalize
     
     def action(self, trust, k):
         # If trust is larger than some constant, return the 
         return 1 if trust > k else 0
+    
+    def printInfo(self):
+        print("Agent index {}".format(self.index))
+        print("Connections with agents    {}".format(self.connections))
+        print("Number reciprocate actions {}".format(self.recip_actions))
+        print("Number of collaborations   {}".format(self.collaborations))
+        print("Total number of encounters {}".format(self.n_encouters))
+        print("Trust priors a = {}, b = {}".format(self.a, self.b))
         
-        
-        
-        
-        
-connection_matrix = gen_connection_matrix(5)
+    
+connection_matrix = gen_connection_matrix(2, 0)
 
 agents = []
 for i, connections in enumerate(connection_matrix):
     agents.append(Agent(i, connections))
+    
+    
+    
+for _ in range(10):
+    
+    # Pick to agents to interact
+    
+    
+    # compute trust
+    trust01 = agents[0].estimateTrust(1)
+    trust10 = agents[1].estimateTrust(0)
+    # decide action
+    action0 = agents[0].action(trust01, 0.5)
+    action1 = agents[1].action(trust10, 0.5) 
+    # update history
+    agents[0].updateHistory(1, action0, action1)
+    agents[1].updateHistory(0, action1, action0)
+    
+    print("Actions: ({},{})".format(action0, action1))
+    agents[0].printInfo()
+    agents[1].printInfo()
         
-        
-
-        
+       
 
 
 #%%
@@ -149,13 +173,13 @@ rep1 = rep(np.append(R_prior_1, d, axis=1))
   
 
 #%%
-a_s = range(1,5)
-b_s = range(1,5)
+a_s = range(1000,1005)
+b_s = range(1000,1005)
 
-theta = np.arange (0, 1.01, 0.01)
+theta = np.arange (0, 1.001, 0.001)
  
  
-#f, ax = plt.subplots(len(a_s), len(b_s), figsize=(12,12))
+f, ax = plt.subplots(len(a_s), len(b_s), figsize=(12,12))
 
 for i,a in enumerate(a_s):
     for j,b in enumerate(b_s):
@@ -165,12 +189,12 @@ for i,a in enumerate(a_s):
         y = beta.pdf(theta,a,b)
         
         E = [t * y_ for t,y_ in zip(theta, y)]
-        print(sum(E))
+        #print(sum(E) / len(theta))
         
-        #ax[i][j].plot(theta,y)
-        #ax[i][j].set_title("a = {}, b = {}".format(a,b))
+        ax[i][j].plot(theta,y)
+        ax[i][j].set_title("a = {}, b = {}".format(a,b))
         
-#plt.show()
+plt.show()
 
 
 
