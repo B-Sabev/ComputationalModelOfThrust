@@ -30,7 +30,7 @@ class SocialNet(object):
             if priors is None:
                 agents.append(Agent(i, self.n))
             else:
-                agents.append(Agent(i, self.n, priors[i]))
+                agents.append(Agent(i, self.n, priors[i][0], priors[i][1]))
         return agents
     
     def encounter(self, index1, index2, verbose=0, coop_agent=-1):
@@ -60,9 +60,6 @@ class SocialNet(object):
         benefit1, benefit2 = self.cost[(action1, action2)]
         self.agents[index1].benefits[index2] += benefit1
         self.agents[index2].benefits[index1] += benefit2
-        print(self.agents[index1].benefits[index2])
-        print(self.agents[index2].benefits[index1])
-        
         
         
         if verbose:
@@ -237,7 +234,6 @@ Between 2 agents - visualization of the posterior on reputation
 - Modify the priors on trust to simulate different cases
 """
 
-# TODO this thing doesn't influence the priors inside the object
 ab0 = (1,1) 
 ab1 = (1,1)
 
@@ -245,7 +241,7 @@ theta = np.arange(0, 1.001, 0.001)
 
 steps = 5
 
-net = SocialNet(num_agents=2)
+net = SocialNet(num_agents=2, priors=[ab0, ab1])
 
 for i in range(steps):
     
@@ -271,7 +267,7 @@ for i in range(steps):
 """
 Multiple agents - one agent cooperates all the time
 """
-steps = 1000    
+steps = 5000    
 net = SocialNet(num_agents=20)
 
 for i in range(steps):
@@ -297,10 +293,16 @@ ab1 = (1,1)
 
 steps = 5
 
-net = SocialNet(num_agents=2)
+cost = {(0, 0) : (0, 0),
+        (0, 1) : (0,-1),
+        (1, 0) : (-1,0),
+        (1, 1) : (1, 1)}
+
+net = SocialNet(num_agents=2, priors=[ab0,ab1])
+net.setCost(cost)
+
 
 for i in range(steps):
-    
     # encounter between the agents
     net.encounter(0, 1, verbose=1)
 
@@ -310,104 +312,60 @@ for i in range(steps):
 """
 Net benefit
 """
-# TODO - invesigate with 3 different prior levels how the net benefit will evolve
+
+num_agents = 10
+
+# Init priors for 3 different societies
+priors = { 'uniform'   : [(1,1) for _ in range(num_agents)],
+           'naive'     : [(4,1) for _ in range(num_agents)],
+           'suspicious': [(1,4) for _ in range(num_agents)]}
 
 
-# Explore with different bias
- 
-net = SocialNet(num_agents=10)    
-   
-#images = []
+nets = { 'uniform'   : SocialNet(num_agents, priors['uniform']),
+         'naive'     : SocialNet(num_agents, priors['naive']),
+         'suspicious': SocialNet(num_agents, priors['suspicious'])}   
 
+steps = 20000  
+visual_step = 20
 
-for i in range(20000):
+for i in range(steps):
     
-    # Pick two agents to interact
-    index1 = np.random.randint(net.n)
-    # TODO how to scale with reputation - more reputable more chance to be picked
-    index2 = np.random.randint(net.n)
-    if index2 != index1:
+    
+    
+    # Make encounter in all networks
+    for prior_type, net in nets.items():
+        # Pick two agents to interact
+        index1, index2 = net.selectAgents('trust')
+        #print(prior_type)
         net.encounter(index1, index2, verbose=0)
         
-    if i % 20 == 0:
+    print("\n") 
+    
+    # for every step, visualize the 3 benefit matrices
+    if i % visual_step == 0:
+        f, ax = plt.subplots(1,3, figsize=(14, 5))
         
-        benefits = np.array([agent.benefits for agent in net.agents])
+        cax = f.add_axes([0.95, 0.25, 0.03, 0.5])
         
-        
-        
-        print("")
-        rec_mat = np.array([agent.recip_actions for agent in net.agents])
-        total_enc_mat = np.array([agent.n_encouters for agent in net.agents])
-        trust_mat = np.array([agent.trusts for agent in net.agents])
-        
-        reciprocity = rec_mat / (total_enc_mat + 1)
-        
-        norm_benefits = benefits / np.where(total_enc_mat > 0, total_enc_mat, 1)
-        
-        plt.imshow(benefits, cmap='gray', origin='lower',  vmin=-1, vmax=1)
-        plt.colorbar(shrink=.75)
+        for counter, (prior_type, net) in enumerate(nets.items()):
+            # Compute benefit
+            benefits = np.array([agent.benefits for agent in net.agents])
+            n_encouters = np.array([agent.n_encouters for agent in net.agents])
+            n_encouters = np.where(n_encouters == 0, 1, n_encouters)
+            
+            net_benefit = np.sum(benefits)
+            # TODO - make a prettier colormap
+            
+            # Plot the benefit as image
+            im = ax[counter].imshow(benefits / n_encouters, cmap='hot', origin='lower',  vmin=-1, vmax=1)
+            ax[counter].set_title("{}\nnet benefit / encounter = {:.3f}".format(prior_type, net_benefit / (i+1)))
+            ax[counter].set_xticks(np.arange(num_agents))
+            ax[counter].set_yticks(np.arange(num_agents))
+        f.colorbar(im, cax=cax)    
         plt.show()
         
-        
-        
-        
-        
-        #fig = plt.figure()
-        #plt.imshow(rec_mat / (total_enc_mat + 1))
-        #plt.show()
-        
-        #fig.savefig('plots/picture'+str(i))
-        #plt.savefig('plots/picture'+str(i))
-    #images.append(trust_mat)
-#images = np.array(images)
 
 
-
-#%%
-"""
-Plot the posterior on reputation for one agent in the eyes of all the rest
-"""
-
-agent_index = 2
-theta = np.arange(0,1.01,0.01)
-
-for agent in net.agents:
-    
-    if agent.index == agent_index:
-        continue
-    z = agent.collaborations[agent_index]
-    N = agent.n_encouters[agent_index]
-    trust = agent.trusts[agent_index]
-    
-    dist = beta.pdf(theta, 1+z, 1+N-z)
-    plt.plot(theta, dist)
-    plt.show()
-        
-        
-#%%
-        
-import imageio
-
-filenames = []
-
-with imageio.get_writer('trust.gif', mode='I') as writer:
-    for filename in filenames:
-        image = imageio.imread(filename)
-        writer.append_data(image)
-        
-    
-#%%
-        
-import imageio
-#images = []
-for filename in filenames:
-    images.append(imageio.imread(filename))
-imageio.mimsave('trust.gif', images)
-
-    
-
-    
-# Remove same sets
 
 #%%
 
@@ -434,31 +392,6 @@ for error in [0.01, 0.05, 0.1]:
     
 """
 
-Reciprocity norm - reciprocity must be high at the end of simulation
-
-
-+ reputation in ESN(embeded social network) =>  + trust from all agents in ESN
-
-
-
-# reciprocive actions in ESN   ~   reputation in ESN
-    cumulative dyadic reciprocity that ai engages in with
-    other agents in a society should have an influence on
-    ai’s reputation as a reciprocating agent in that society.
-    
-    
-Reputation - based on actions towards everyone in ESN - 
-            Measures the likelihood that an agent will reciprocate
-            
-Trust - subjective expectation an agent has about
-        another’s future behavior based on the history of
-        their encounters.
-        The higher the trust level for agent ai, the higher the
-        expectation that ai will reciprocate agent aj’s actions.
-
-
-
-
 STD on the trust:
     (a + z)*(b + N - z)
     (a+b+n-1) * (a+b+n)**2
@@ -467,77 +400,13 @@ Error - calculation in the paper
 
 
 """
-    
-#%%
-
-a = 100
-b = 100
-
-z = 1000
-N = 5000
-
-theta = np.arange (0, 1.01, 0.01)
-# posterior on reputation given data
-p_theta = beta.pdf(theta, a + z, b + N - z)
-   
-print(np.sum(theta * p_theta))
-print((a + z) / (a + b + N))
-
 
 
 #%%
 
-graph = {'A': set(['B']),
-         'B': set(['A', 'C']),
-         'C': set(['B', 'D']),
-         'D': set(['C', 'E']),
-         'E': set(['D', 'F']),
-         'F': set(['E'])}
 
-
-graph1 = {
-        1 : set([2,3,4,5,6]),
-        2 : set([1,3,4,5,6]),
-        3 : set([1,2,4,5,6]),
-        4 : set([1,2,3,5,6]),
-        5 : set([1,2,3,4,6]),
-        6 : set([1,2,3,4,5])}
-
-
-graph2 = { p : set(n) for p, n in zip([1,2,3,4], [[2,3], [1,3], [1,2,4], [3]])}
-
-
-
-#%%
-
-def bfs_paths(graph, start, goal, k):
-    queue = [(start, [start])]
-    while queue:
-        (vertex, path) = queue.pop(0)
-        if len(path) > k+1:
-            break
-        for next in graph[vertex] - set(path):
-            if next == goal:
-                yield path + [next]
-            else:
-                queue.append((next, path + [next]))
-
-paths = list(bfs_paths(graph1, 1, 2, k=2)) # [['A', 'C', 'F'], ['A', 'B', 'E', 'F']]
-
-
-paths
-
-
-
-#%%
         
-def remove_diag(x):
-    new_x = []
-    for i in range(10):
-        new_x.append(np.append(x[i,:i], x[i,(i+1):]))
-        
-    return np.array(new_x)
-        
+
 
 
 

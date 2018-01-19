@@ -1,3 +1,13 @@
+
+
+Maybe try to make a gif of the society development
+and of plotly of the 2 people
+
+
+
+
+
+#%%
 import plotly.plotly as py
 import numpy as np
 from plotly.offline import iplot 
@@ -122,6 +132,86 @@ def gen_connection_matrix(self, n, p):
 
 
 
+
+
+#%%
+        
+
+#%%
+"""
+Plot the posterior on reputation for one agent in the eyes of all the rest
+"""
+
+agent_index = 2
+theta = np.arange(0,1.01,0.01)
+
+for agent in net.agents:
+    
+    if agent.index == agent_index:
+        continue
+    z = agent.collaborations[agent_index]
+    N = agent.n_encouters[agent_index]
+    trust = agent.trusts[agent_index]
+    
+    dist = beta.pdf(theta, 1+z, 1+N-z)
+    plt.plot(theta, dist)
+    plt.show()
+    
+#%%
+
+a=1
+b=1
+z=6
+N=10
+
+theta = np.arange(0,1.01, 0.01)
+
+p_theta = beta.pdf(theta, a+z, b+N-z)
+trust = np.round((a + z) / (a + b + N), decimals=2)
+
+plt.plot(theta, p_theta, label='posterior distribution')
+plt.axvline(x=trust, color='red', label='expected value: trust')
+plt.legend()
+plt.title("Posterior P(theta|D), z={}, N={}".format(z,N))
+plt.xlabel("P(reciprocate)")
+plt.show()
+        
+        
+#%%
+        
+import imageio
+
+filenames = []
+
+with imageio.get_writer('trust.gif', mode='I') as writer:
+    for filename in filenames:
+        image = imageio.imread(filename)
+        writer.append_data(image)
+        
+    
+#%%
+        
+import imageio
+#images = []
+for filename in filenames:
+    images.append(imageio.imread(filename))
+imageio.mimsave('trust.gif', images)
+
+    
+
+    
+# Remove same sets
+
+
+#%%
+
+def remove_diag(x):
+    new_x = []
+    for i in range(10):
+        new_x.append(np.append(x[i,:i], x[i,(i+1):]))
+        
+    return np.array(new_x)
+        
 
 
 
