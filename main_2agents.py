@@ -267,18 +267,35 @@ for i in range(steps):
 """
 Multiple agents - one agent cooperates all the time
 """
-steps = 5000    
-net = SocialNet(num_agents=20)
 
-for i in range(steps):
+numbers_agents = np.arange(3,12,2)
+
+for num_agents in numbers_agents:
     
-    index1, index2 = net.selectAgents('trust')
-    net.encounter(index1, index2, verbose=0, coop_agent=0) # if one of the agents is 0, he will always cooperate
+    priors = { 'uniform'   : [(1,1) for _ in range(num_agents)]}
+               #'naive'     : [(5,1) for _ in range(num_agents)],
+               #'suspicious': [(1,5) for _ in range(num_agents)]}
+    
+    for prior_type, prior_val in priors.items():
+    
+        steps = 140 * (num_agents ** 2)   
+        net = SocialNet(num_agents, priors=prior_val)
         
-# Plot the reciprocity between the cooperative angent and all the rest
-recip =  net.agents[0].recip_actions[1:] / net.agents[0].n_encouters[1:]    
-plt.hist(recip)
-plt.show()
+        for i in range(steps):
+            
+            index1, index2 = net.selectAgents('trust')
+            net.encounter(index1, index2, verbose=0, coop_agent=0) # if one of the agents is 0, he will always cooperate
+                
+        # Plot the reciprocity between the cooperative angent and all the rest
+        enc = net.agents[0].n_encouters[1:]
+        colab = net.agents[0].collaborations[1:]
+        
+        val = colab / np.where(enc > 0, enc, 1)
+        
+        plt.hist(val)
+        plt.title("Distribution of colaboration per encounter prior={}, num_agents={}".format(prior_val[0], num_agents))
+        plt.xlim(0,1)
+        plt.show()
 
 
 #%%
@@ -317,20 +334,22 @@ num_agents = 10
 
 # Init priors for 3 different societies
 priors = { 'uniform'   : [(1,1) for _ in range(num_agents)],
-           'naive'     : [(4,1) for _ in range(num_agents)],
-           'suspicious': [(1,4) for _ in range(num_agents)]}
+           'naive'     : [(6,1) for _ in range(num_agents)],
+           'suspicious': [(1,6) for _ in range(num_agents)]}
 
 
 nets = { 'uniform'   : SocialNet(num_agents, priors['uniform']),
          'naive'     : SocialNet(num_agents, priors['naive']),
          'suspicious': SocialNet(num_agents, priors['suspicious'])}   
 
-steps = 20000  
-visual_step = 20
+steps = 5000  
+visual_step = 1
+
+
+net_benefit = np.zeros((len(priors),steps//visual_step))
+
 
 for i in range(steps):
-    
-    
     
     # Make encounter in all networks
     for prior_type, net in nets.items():
@@ -339,13 +358,13 @@ for i in range(steps):
         #print(prior_type)
         net.encounter(index1, index2, verbose=0)
         
-    print("\n") 
+    #print("\n") 
     
     # for every step, visualize the 3 benefit matrices
     if i % visual_step == 0:
-        f, ax = plt.subplots(1,3, figsize=(14, 5))
+        #f, ax = plt.subplots(1,3, figsize=(14, 5))
         
-        cax = f.add_axes([0.95, 0.25, 0.03, 0.5])
+        #cax = f.add_axes([0.95, 0.25, 0.03, 0.5])
         
         for counter, (prior_type, net) in enumerate(nets.items()):
             # Compute benefit
@@ -353,19 +372,31 @@ for i in range(steps):
             n_encouters = np.array([agent.n_encouters for agent in net.agents])
             n_encouters = np.where(n_encouters == 0, 1, n_encouters)
             
-            net_benefit = np.sum(benefits)
+            net_benefit[counter][i//visual_step] = np.sum(benefits)
+            
+        """
             # TODO - make a prettier colormap
             
             # Plot the benefit as image
             im = ax[counter].imshow(benefits / n_encouters, cmap='hot', origin='lower',  vmin=-1, vmax=1)
-            ax[counter].set_title("{}\nnet benefit / encounter = {:.3f}".format(prior_type, net_benefit / (i+1)))
+            ax[counter].set_title("{}\nnet benefit / encounter = {:.3f}".format(prior_type,  net_benefit[counter][i] / (i+1)))
             ax[counter].set_xticks(np.arange(num_agents))
             ax[counter].set_yticks(np.arange(num_agents))
         f.colorbar(im, cax=cax)    
         plt.show()
+        """
         
+#%%
 
+labels = ['uniform', 'naive', 'suspicious'] 
 
+for label, benefit in zip(labels, net_benefit):
+    plt.plot(benefit , label=label)
+plt.legend()
+plt.title("Net benefit in 3 social nets")
+plt.ylabel("Net benefit")
+plt.xlabel("Simulation steps")
+plt.show()
 
 #%%
 
